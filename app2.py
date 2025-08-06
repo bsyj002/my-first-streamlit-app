@@ -140,7 +140,7 @@ def calculate_bonus_score(analysis_result):
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
-    st.image(image, caption="업로드한 얼굴 사진", use_column_width=True)
+    st.image(image, caption="업로드한 얼굴 사진", use_container_width=True)
     
     with st.spinner("OpenAI가 이미지를 분석하고 있습니다..."):
         analysis_result = analyze_face_with_openai(image)
@@ -221,3 +221,4 @@ elif uploaded_file is not None:
     st.error("⚠️ 이미지를 업로드했지만 분석에 실패했습니다!")
 else:
     st.info("얼굴 사진을 업로드해주세요!")
+
