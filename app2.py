@@ -47,9 +47,9 @@ def analyze_face_with_openai(image):
         # 이미지를 base64로 인코딩
         base64_image = encode_image_to_base64(image)
         
-        # OpenAI Vision API 호출
+        # OpenAI Vision API 호출 - 새로운 모델 사용
         response = client.chat.completions.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4o-mini",  # gpt-4-vision-preview → gpt-4o로 변경
             messages=[
                 {
                     "role": "user",
