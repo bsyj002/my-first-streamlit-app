@@ -9,7 +9,7 @@ import json
 # OpenAI API 키 설정
 client = OpenAI(
     api_key=st.secrets["OPENAI_API_KEY"],
-    base_url="https://api.openai.com/v1"  # 오타 수정: opneai → openai
+    base_url="https://api.openai.com/v1"
 )
 
 st.title("🤖 AI 기반 얼굴 분석 및 잘생김 측정기")
@@ -18,14 +18,14 @@ st.write("""
 OpenAI Vision API를 사용하여 업로드한 얼굴 사진을 분석하고, 
 다음 요소들을 종합적으로 평가하여 잘생김 점수를 계산합니다:
 
- **분석 요소:**
+**분석 요소:**
 - 얼굴 대칭성 및 비율
 - 눈, 코, 입의 조화
 - 피부 상태 및 톤
 - 전체적인 얼굴 구조
 - 키와의 조화
 
- **점수 체계:**
+**점수 체계:**
 - 얼굴 분석: 70점
 - 키 점수: 20점  
 - 추가 보너스: 10점
@@ -47,9 +47,9 @@ def analyze_face_with_openai(image):
         # 이미지를 base64로 인코딩
         base64_image = encode_image_to_base64(image)
         
-        # OpenAI Vision API 호출 - 새로운 모델 사용
+        # OpenAI Vision API 호출
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # gpt-4-vision-preview → gpt-4o로 변경
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",
@@ -57,20 +57,21 @@ def analyze_face_with_openai(image):
                         {
                             "type": "text",
                             "text": """
-                            이 얼굴 사진을 분석해서 다음 정보를 JSON 형태로 반환해주세요:
+                            이 얼굴 사진을 분석해서 다음 정보를 JSON 형태로 반환해주세요.
+                            반드시 아래 형식의 JSON만 반환하고, 다른 텍스트나 설명은 포함하지 마세요:
                             
                             {
-                                "face_symmetry": 0-10,  // 얼굴 대칭성 (10점 만점)
-                                "facial_proportions": 0-10,  // 얼굴 비율의 조화 (10점 만점)
-                                "eye_beauty": 0-10,  // 눈의 아름다움 (10점 만점)
-                                "nose_beauty": 0-10,  // 코의 아름다움 (10점 만점)
-                                "lips_beauty": 0-10,  // 입술의 아름다움 (10점 만점)
-                                "skin_quality": 0-10,  // 피부 상태 (10점 만점)
-                                "overall_harmony": 0-10,  // 전체적인 조화 (10점 만점)
-                                "analysis_summary": "한국어로 분석 결과 요약"
+                                "face_symmetry": 7,
+                                "facial_proportions": 8,
+                                "eye_beauty": 6,
+                                "nose_beauty": 7,
+                                "lips_beauty": 8,
+                                "skin_quality": 9,
+                                "overall_harmony": 7,
+                                "analysis_summary": "얼굴이 대칭적이고 비율이 좋습니다."
                             }
                             
-                            점수는 객관적이고 정확하게 평가해주세요. JSON만 반환하고 다른 텍스트는 포함하지 마세요.
+                            각 점수는 0-10 사이의 정수로 평가하고, analysis_summary는 한국어로 간단히 요약해주세요.
                             """
                         },
                         {
@@ -86,20 +87,62 @@ def analyze_face_with_openai(image):
         )
         
         # 응답에서 JSON 추출
-        content = response.choices[0].message.content
-        # JSON 부분만 추출 (```json과 ``` 사이의 내용)
-        if "```json" in content:
-            json_start = content.find("```json") + 7
-            json_end = content.find("```", json_start)
-            json_str = content[json_start:json_end].strip()
-        else:
-            json_str = content.strip()
+        content = response.choices[0].message.content.strip()
         
-        return json.loads(json_str)
+        # JSON 파싱 시도
+        try:
+            # 먼저 그대로 파싱 시도
+            return json.loads(content)
+        except json.JSONDecodeError:
+            # JSON 블록에서 추출 시도
+            if "```json" in content:
+                json_start = content.find("```json") + 7
+                json_end = content.find("```", json_start)
+                if json_end != -1:
+                    json_str = content[json_start:json_end].strip()
+                    return json.loads(json_str)
+            
+            # JSON 블록 없이 ```로만 감싸진 경우
+            if "```" in content:
+                json_start = content.find("```") + 3
+                json_end = content.find("```", json_start)
+                if json_end != -1:
+                    json_str = content[json_start:json_end].strip()
+                    return json.loads(json_str)
+            
+            # 마지막 시도: {로 시작하고 }로 끝나는 부분 찾기
+            start_idx = content.find("{")
+            end_idx = content.rfind("}")
+            if start_idx != -1 and end_idx != -1:
+                json_str = content[start_idx:end_idx+1]
+                return json.loads(json_str)
+            
+            # 모든 시도 실패 시 기본값 반환
+            st.warning("AI 응답을 파싱할 수 없어 기본 분석 결과를 사용합니다.")
+            return {
+                "face_symmetry": 7,
+                "facial_proportions": 7,
+                "eye_beauty": 7,
+                "nose_beauty": 7,
+                "lips_beauty": 7,
+                "skin_quality": 7,
+                "overall_harmony": 7,
+                "analysis_summary": "AI 분석 결과를 파싱할 수 없어 기본값을 사용했습니다."
+            }
         
     except Exception as e:
         st.error(f"이미지 분석 중 오류가 발생했습니다: {str(e)}")
-        return None
+        # 오류 발생 시 기본값 반환
+        return {
+            "face_symmetry": 7,
+            "facial_proportions": 7,
+            "eye_beauty": 7,
+            "nose_beauty": 7,
+            "lips_beauty": 7,
+            "skin_quality": 7,
+            "overall_harmony": 7,
+            "analysis_summary": "분석 중 오류가 발생하여 기본값을 사용했습니다."
+        }
 
 def calculate_height_score(height):
     """키에 따른 점수 계산"""
